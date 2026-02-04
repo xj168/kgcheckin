@@ -30,4 +30,4 @@ jobs:
       - name: 签到
         run: npm run main
         env:
-          USERINFO: [{"userid":388246889,"token":"d752d087e5e89dc16c6600176a0eb6f6e5ae0f51531181df4bfb12b36f52594f"}]
+          USERINFO: ${{ secrets.USERINFO }}
