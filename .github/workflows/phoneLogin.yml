@@ -31,5 +31,5 @@ jobs:
       - name: 手机号登录
         run: npm run phoneLogin
         env:
-          PHONE: 15223047158
-          CODE: 674942
+          PHONE: ${{ secrets.PHONE }}
+          CODE: ${{ secrets.CODE }}
