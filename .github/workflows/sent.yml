@@ -31,4 +31,4 @@ jobs:
       - name: 发送验证码
         run: npm run sent
         env:
-          PHONE: ${{ secrets.PHONE }}
+          PHONE: 15223047158
