@@ -1,8 +1,11 @@
 name: main
 on:
   workflow_dispatch:
+  # push:
   schedule:
     - cron: 1 23 * * *
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
   run:
     runs-on: ubuntu-latest
