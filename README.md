@@ -65,6 +65,16 @@ GitHub Actions 实现 `酷狗概念VIP` 自动签到
 
 1. 启用 Actions `main` (默认启用), 每天北京时间 00:01 自动签到
 
+1. 启用 Actions `keepalive`（重要）, 每月 1 号自动提交一次保活记录
+
+   > [!note]
+   > GitHub 会停用「连续 60 天没有任何提交」的仓库上的所有定时任务，**定时任务自己运行并不算活跃**。
+   > `keepalive` 每月往 `.keepalive/history.txt` 写一次时间戳并提交，保证 `main` 的每日签到不会被自动停掉。
+   >
+   > - 若 Actions 页面已经显示 `Disabled`，说明已被停用，需要手动点一次 `Enable` 恢复（停用后定时任务不会再运行，只能手动恢复）。
+   > - 配好 `PAT` 后，`keepalive` 每次运行还会检查其它工作流，把被停用的自动重新启用。
+   > - 想把保活频率调高，改 `keepalive.yml` 里的 `cron` 即可（如 `0 3 * * 1` 为每周一）。
+
 API源代码来自 [MakcRe/KuGouMusicApi](https://github.com/MakcRe/KuGouMusicApi) ~~图省事直接搬来~~
 
 ## Secret 位置

@@ -1,0 +1,86 @@
+name: keepalive
+
+# 作用：GitHub 会停用「连续 60 天没有任何提交」的仓库上的 schedule 定时任务，
+#       定时任务自己运行并不算活跃。本工作流每月往默认分支提交一次时间戳，
+#       让仓库始终保持活跃，main.yml 的每日签到就不会被自动停掉。
+#
+# 如果仓库已经被停用（Actions 页面显示 Disabled），需要先手动点一次 Enable，
+# 之后本工作流会接管保活。
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 每月 1 号 03:17 UTC（北京时间 11:17），错开整点的高峰排队
+    - cron: '17 3 1 * *'
+
+# 需要写权限才能把提交推回默认分支
+permissions:
+  contents: write
+
+# 同一时间只跑一个，避免手动触发和定时任务撞车
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+env:
+  PAT: ${{ secrets.PAT }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v5
+        with:
+          # 优先用 PAT（提交记录更"真实"，也能触发其它工作流）；没有 PAT 则回退到内置 token
+          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: 检查并重新启用被停用的工作流
+        if: env.PAT != ''
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+        run: |
+          echo "当前默认分支上的工作流状态："
+          gh api "repos/${REPO}/actions/workflows" \
+            --jq '.workflows[] | "  \(.path)\t\(.state)"'
+
+          disabled=$(gh api "repos/${REPO}/actions/workflows" \
+            --jq '.workflows[] | select(.state != "active") | "\(.id)\t\(.state)\t\(.path)"' || true)
+
+          if [ -z "${disabled}" ]; then
+            echo "所有工作流均为 active，无需处理"
+            exit 0
+          fi
+
+          echo "${disabled}" | while IFS=$'\t' read -r id state path; do
+            echo "发现 ${path} 处于 ${state}，尝试重新启用"
+            gh api -X PUT "repos/${REPO}/actions/workflows/${id}/enable" > /dev/null \
+              && echo "  已启用 ${path}" \
+              || echo "  启用失败（无权限或令牌权限不足）"
+          done
+
+      - name: 写入保活时间戳
+        run: |
+          mkdir -p .keepalive
+          # 直接用 UTC 加 8 小时换算成北京时间，不依赖 runner 上的 tzdata
+          ts="$(date -u -d '+8 hours' '+%Y-%m-%d %H:%M:%S')"
+          printf '%s\n' "${ts}" >> .keepalive/history.txt
+          # 只保留最近 24 次，避免文件无限变长
+          tail -n 24 .keepalive/history.txt > .keepalive/history.tmp
+          mv .keepalive/history.tmp .keepalive/history.txt
+          echo "本次保活时间：${ts}"
+
+      - name: 提交并推送
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .keepalive/history.txt
+          if git diff --cached --quiet; then
+            echo "没有变化，跳过提交"
+            exit 0
+          fi
+          git commit -m "chore(keepalive): 保活 $(date -u '+%Y-%m-%d') [skip ci]"
+          git push
